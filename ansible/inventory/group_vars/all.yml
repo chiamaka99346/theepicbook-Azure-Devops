@@ -1,0 +1,17 @@
+# These values are replaced by the App pipeline
+# using Terraform outputs before Ansible runs
+
+mysql_fqdn: "MYSQL_FQDN_PLACEHOLDER"
+mysql_database: "epicbook"
+mysql_user: "epicbookadmin"
+mysql_password: "MYSQL_PASSWORD_PLACEHOLDER"
+
+backend_private_ip: "BACKEND_IP_PLACEHOLDER"
+frontend_public_ip: "FRONTEND_IP_PLACEHOLDER"
+
+app_port: 5000
+node_env: "production"
+
+# App repo URL - update to your actual repo
+app_repo_url: "https://github.com/pravinmishraaws/theepicbook.git"
+app_dir: "/opt/epicbook"

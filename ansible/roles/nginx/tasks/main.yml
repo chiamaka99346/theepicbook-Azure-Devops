@@ -1,0 +1,41 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Ensure Nginx is started and enabled
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+  become: yes
+
+- name: Remove default Nginx config
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  become: yes
+
+- name: Deploy EpicBook Nginx config
+  template:
+    src: epicbook.conf.j2
+    dest: /etc/nginx/sites-available/epicbook
+    mode: "0644"
+  become: yes
+  notify: reload nginx
+
+- name: Enable EpicBook Nginx config
+  file:
+    src: /etc/nginx/sites-available/epicbook
+    dest: /etc/nginx/sites-enabled/epicbook
+    state: link
+  become: yes
+  notify: reload nginx
+
+- name: Test Nginx config
+  command: nginx -t
+  become: yes
+  changed_when: false

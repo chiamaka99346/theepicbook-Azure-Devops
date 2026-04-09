@@ -1,0 +1,57 @@
+---
+- name: Create app directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  become: yes
+
+- name: Clone EpicBook repository
+  git:
+    repo: "{{ app_repo_url }}"
+    dest: "{{ app_dir }}"
+    version: main
+    force: yes
+  become: no
+
+- name: Deploy backend .env file
+  template:
+    src: backend.env.j2
+    dest: "{{ app_dir }}/backend/.env"
+    mode: "0600"
+  become: no
+
+- name: Install backend dependencies
+  npm:
+    path: "{{ app_dir }}/backend"
+    state: present
+  become: no
+
+- name: Stop existing backend PM2 process if running
+  shell: pm2 delete epicbook-backend || true
+  become: no
+  ignore_errors: yes
+
+- name: Start backend with PM2
+  shell: |
+    cd {{ app_dir }}/backend
+    pm2 start server.js --name epicbook-backend --env production
+    pm2 save
+  become: no
+  environment:
+    NODE_ENV: "{{ node_env }}"
+
+- name: Enable PM2 startup on boot
+  shell: |
+    pm2 startup systemd -u {{ ansible_user }} --hp /home/{{ ansible_user }}
+    pm2 save
+  become: yes
+
+- name: Wait for backend to be ready
+  wait_for:
+    host: localhost
+    port: "{{ app_port }}"
+    timeout: 60
+    state: started

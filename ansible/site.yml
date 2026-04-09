@@ -1,0 +1,19 @@
+---
+- name: Configure Backend VM
+  hosts: backend
+  become: yes
+  vars:
+    deploy_target: "backend"
+  roles:
+    - common
+    - epicbook
+
+- name: Configure Frontend VM
+  hosts: frontend
+  become: yes
+  vars:
+    deploy_target: "frontend"
+  roles:
+    - common
+    - nginx
+    - epicbook

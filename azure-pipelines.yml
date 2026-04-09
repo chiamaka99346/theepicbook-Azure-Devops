@@ -1,0 +1,138 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - group: epicbook-app-vars  # Variable group created in Azure DevOps Library
+  - name: ANSIBLE_VERSION
+    value: "2.15"
+
+stages:
+  - stage: AnsibleSetup
+    displayName: "Install Ansible & Prepare Environment"
+    jobs:
+      - job: Setup
+        displayName: "Install Ansible"
+        steps:
+          - bash: |
+              sudo apt-get update -y
+              sudo apt-get install -y software-properties-common
+              sudo add-apt-repository --yes --update ppa:ansible/ansible
+              sudo apt-get install -y ansible
+              ansible --version
+            displayName: "Install Ansible"
+
+          - task: DownloadSecureFile@1
+            name: sshKey
+            displayName: "Download SSH Private Key"
+            inputs:
+              secureFile: "id_ed25519"
+
+          - bash: |
+              mkdir -p ~/.ssh
+              cp $(sshKey.secureFilePath) ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+              echo "SSH key placed successfully"
+            displayName: "Configure SSH Key"
+
+  - stage: UpdateInventory
+    displayName: "Update Inventory with Terraform Outputs"
+    dependsOn: AnsibleSetup
+    jobs:
+      - job: UpdateInventory
+        displayName: "Inject IPs and MySQL FQDN"
+        steps:
+          - checkout: self
+
+          - task: DownloadSecureFile@1
+            name: sshKey
+            displayName: "Download SSH Private Key"
+            inputs:
+              secureFile: "id_ed25519"
+
+          - bash: |
+              mkdir -p ~/.ssh
+              cp $(sshKey.secureFilePath) ~/.ssh/id_ed25519
+              chmod 600 ~/.ssh/id_ed25519
+            displayName: "Configure SSH Key"
+
+          - bash: |
+              echo "Updating Ansible inventory with Terraform outputs..."
+              echo "Frontend IP: $(APP_PUBLIC_IP)"
+              echo "Backend IP: $(BACKEND_PRIVATE_IP)"
+              echo "MySQL FQDN: $(MYSQL_FQDN)"
+
+              # Replace placeholders in inventory
+              sed -i "s/FRONTEND_IP_PLACEHOLDER/$(APP_PUBLIC_IP)/g" ansible/inventory/hosts.ini
+              sed -i "s/BACKEND_IP_PLACEHOLDER/$(BACKEND_PRIVATE_IP)/g" ansible/inventory/hosts.ini
+
+              # Replace placeholders in group_vars
+              sed -i "s/MYSQL_FQDN_PLACEHOLDER/$(MYSQL_FQDN)/g" ansible/inventory/group_vars/all.yml
+              sed -i "s/BACKEND_IP_PLACEHOLDER/$(BACKEND_PRIVATE_IP)/g" ansible/inventory/group_vars/all.yml
+              sed -i "s/FRONTEND_IP_PLACEHOLDER/$(APP_PUBLIC_IP)/g" ansible/inventory/group_vars/all.yml
+              sed -i "s/MYSQL_PASSWORD_PLACEHOLDER/$(MYSQL_ADMIN_PASSWORD)/g" ansible/inventory/group_vars/all.yml
+
+              echo "Inventory updated:"
+              cat ansible/inventory/hosts.ini
+            displayName: "Inject Terraform Outputs into Ansible Files"
+            env:
+              APP_PUBLIC_IP: $(APP_PUBLIC_IP)
+              BACKEND_PRIVATE_IP: $(BACKEND_PRIVATE_IP)
+              MYSQL_FQDN: $(MYSQL_FQDN)
+              MYSQL_ADMIN_PASSWORD: $(MYSQL_ADMIN_PASSWORD)
+
+          - bash: |
+              sudo apt-get update -y
+              sudo apt-get install -y ansible
+
+              echo "Testing Ansible connectivity to frontend..."
+              ansible frontend -i ansible/inventory/hosts.ini -m ping \
+                --private-key ~/.ssh/id_ed25519 \
+                -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
+
+              echo "Testing Ansible connectivity to backend..."
+              ansible backend -i ansible/inventory/hosts.ini -m ping \
+                --private-key ~/.ssh/id_ed25519 \
+                -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
+            displayName: "Ping VMs to Verify SSH Connectivity"
+
+          - bash: |
+              sudo apt-get install -y ansible
+
+              echo "Running Ansible playbook..."
+              ansible-playbook ansible/site.yml \
+                -i ansible/inventory/hosts.ini \
+                --private-key ~/.ssh/id_ed25519 \
+                -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
+                -v
+            displayName: "Run Ansible Playbook"
+            env:
+              ANSIBLE_HOST_KEY_CHECKING: "False"
+
+  - stage: Verify
+    displayName: "Verify Deployment"
+    dependsOn: UpdateInventory
+    jobs:
+      - job: Verify
+        displayName: "Check EpicBook is Live"
+        steps:
+          - bash: |
+              echo "Waiting 30 seconds for services to stabilize..."
+              sleep 30
+
+              echo "Checking if EpicBook is accessible at http://$(APP_PUBLIC_IP)..."
+              HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://$(APP_PUBLIC_IP) --max-time 30)
+
+              if [ "$HTTP_STATUS" == "200" ] || [ "$HTTP_STATUS" == "301" ] || [ "$HTTP_STATUS" == "302" ]; then
+                echo "SUCCESS: EpicBook is live. HTTP Status: $HTTP_STATUS"
+              else
+                echo "WARNING: Got HTTP status $HTTP_STATUS. App may still be starting up."
+                echo "Check http://$(APP_PUBLIC_IP) manually in a few minutes."
+              fi
+            displayName: "HTTP Health Check"
+            env:
+              APP_PUBLIC_IP: $(APP_PUBLIC_IP)

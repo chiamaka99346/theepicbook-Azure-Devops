@@ -1,0 +1,12 @@
+---
+# This file is the entry point for the epicbook role.
+# It includes either backend or frontend tasks depending on the host group.
+# The playbook sets the "deploy_target" variable per host group.
+
+- name: Run backend tasks
+  include_tasks: backend.yml
+  when: deploy_target == "backend"
+
+- name: Run frontend tasks
+  include_tasks: frontend.yml
+  when: deploy_target == "frontend"
