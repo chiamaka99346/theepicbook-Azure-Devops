@@ -4,7 +4,7 @@ trigger:
       - main
 
 pool:
-  vmImage: "ubuntu-latest"
+  name: "azure-pipelines-hosted-agent"
 
 variables:
   - group: epicbook-app-vars  # Variable group created in Azure DevOps Library
@@ -30,12 +30,12 @@ stages:
             name: sshKey
             displayName: "Download SSH Private Key"
             inputs:
-              secureFile: "id_ed25519"
+              secureFile: "id_rsa_epicbook"
 
           - bash: |
               mkdir -p ~/.ssh
-              cp $(sshKey.secureFilePath) ~/.ssh/id_ed25519
-              chmod 600 ~/.ssh/id_ed25519
+              cp $(sshKey.secureFilePath) ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
               echo "SSH key placed successfully"
             displayName: "Configure SSH Key"
 
@@ -52,12 +52,12 @@ stages:
             name: sshKey
             displayName: "Download SSH Private Key"
             inputs:
-              secureFile: "id_ed25519"
+              secureFile: "id_rsa_epicbook"
 
           - bash: |
               mkdir -p ~/.ssh
-              cp $(sshKey.secureFilePath) ~/.ssh/id_ed25519
-              chmod 600 ~/.ssh/id_ed25519
+              cp $(sshKey.secureFilePath) ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
             displayName: "Configure SSH Key"
 
           - bash: |
@@ -91,12 +91,12 @@ stages:
 
               echo "Testing Ansible connectivity to frontend..."
               ansible frontend -i ansible/inventory/hosts.ini -m ping \
-                --private-key ~/.ssh/id_ed25519 \
+                --private-key ~/.ssh/id_rsa_epicbook \
                 -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
 
               echo "Testing Ansible connectivity to backend..."
               ansible backend -i ansible/inventory/hosts.ini -m ping \
-                --private-key ~/.ssh/id_ed25519 \
+                --private-key ~/.ssh/id_rsa_epicbook \
                 -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
             displayName: "Ping VMs to Verify SSH Connectivity"
 
@@ -106,7 +106,7 @@ stages:
               echo "Running Ansible playbook..."
               ansible-playbook ansible/site.yml \
                 -i ansible/inventory/hosts.ini \
-                --private-key ~/.ssh/id_ed25519 \
+                --private-key ~/.ssh/id_rsa_epicbook \
                 -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
                 -v
             displayName: "Run Ansible Playbook"
