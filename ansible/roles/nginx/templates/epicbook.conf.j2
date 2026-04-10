@@ -3,7 +3,7 @@ server {
     server_name {{ frontend_public_ip }};
 
     location / {
-        proxy_pass http://localhost:{{ app_port }};
+        proxy_pass http://{{ backend_private_ip }}:{{ app_port }};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
