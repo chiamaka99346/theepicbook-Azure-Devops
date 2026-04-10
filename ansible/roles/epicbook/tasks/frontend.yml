@@ -1,65 +1,20 @@
 ---
-- name: Ensure app directory exists
-  file:
-    path: "{{ app_dir }}"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: "0755"
-  become: yes
-
-- name: Clone EpicBook repository
-  git:
-    repo: "{{ app_repo_url }}"
-    dest: "{{ app_dir }}"
-    version: main
-    force: yes
-    update: yes
-    accept_hostkey: yes
-  become: no
-
-- name: Deploy frontend .env file
+- name: Update Nginx config with backend details
   template:
-    src: frontend.env.j2
-    dest: "{{ app_dir }}/frontend/.env.local"
+    src: ../nginx/templates/epicbook.conf.j2
+    dest: /etc/nginx/sites-available/epicbook
     mode: "0644"
-  become: no
-
-- name: Install frontend dependencies
-  npm:
-    path: "{{ app_dir }}/frontend"
-    state: present
-  become: no
-
-- name: Build frontend application
-  shell: |
-    cd {{ app_dir }}/frontend
-    npm run build
-  become: no
-  environment:
-    NODE_ENV: production
-
-- name: Stop existing frontend PM2 process if running
-  shell: pm2 delete epicbook-frontend || true
-  become: no
-  ignore_errors: yes
-
-- name: Start frontend with PM2
-  shell: |
-    cd {{ app_dir }}/frontend
-    pm2 start npm --name epicbook-frontend -- start
-    pm2 save
-  become: no
-
-- name: Enable PM2 startup on boot
-  shell: |
-    pm2 startup systemd -u {{ ansible_user }} --hp /home/{{ ansible_user }}
-    pm2 save
   become: yes
 
-- name: Wait for frontend to be ready
-  wait_for:
-    host: localhost
-    port: 3000
-    timeout: 120
-    state: started
+- name: Enable Nginx site
+  file:
+    src: /etc/nginx/sites-available/epicbook
+    dest: /etc/nginx/sites-enabled/epicbook
+    state: link
+  become: yes
+
+- name: Reload Nginx
+  service:
+    name: nginx
+    state: reloaded
+  become: yes
