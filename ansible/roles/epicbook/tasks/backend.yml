@@ -1,5 +1,5 @@
 ---
-- name: Ensure app directory exists
+- name: Create app directory
   file:
     path: "{{ app_dir }}"
     state: directory
@@ -14,36 +14,32 @@
     dest: "{{ app_dir }}"
     version: main
     force: yes
-    update: yes
-    accept_hostkey: yes
   become: no
 
-- name: Deploy backend .env file
+- name: Deploy app config file
   template:
     src: backend.env.j2
-    dest: "{{ app_dir }}/backend/.env"
-    mode: "0600"
+    dest: "{{ app_dir }}/config/config.json"
+    mode: "0644"
   become: no
 
-- name: Install backend dependencies
+- name: Install app dependencies
   npm:
-    path: "{{ app_dir }}/backend"
+    path: "{{ app_dir }}"
     state: present
   become: no
 
-- name: Stop existing backend PM2 process if running
+- name: Stop existing PM2 process if running
   shell: pm2 delete epicbook-backend || true
   become: no
   ignore_errors: yes
 
-- name: Start backend with PM2
+- name: Start app with PM2
   shell: |
-    cd {{ app_dir }}/backend
-    pm2 start server.js --name epicbook-backend --env production
+    cd {{ app_dir }}
+    pm2 start server.js --name epicbook-backend
     pm2 save
   become: no
-  environment:
-    NODE_ENV: "{{ node_env }}"
 
 - name: Enable PM2 startup on boot
   shell: |
@@ -51,12 +47,9 @@
     pm2 save
   become: yes
 
-- name: Wait for backend to be ready
+- name: Wait for app to be ready
   wait_for:
     host: localhost
     port: "{{ app_port }}"
     timeout: 60
     state: started
-
-
-

@@ -9,7 +9,7 @@ mysql_password: "MYSQL_PASSWORD_PLACEHOLDER"
 backend_private_ip: "BACKEND_IP_PLACEHOLDER"
 frontend_public_ip: "FRONTEND_IP_PLACEHOLDER"
 
-app_port: 5000
+app_port: 8080
 node_env: "production"
 
 # App repo URL - update to your actual repo
